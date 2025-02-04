@@ -1,0 +1,55 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Set up IAM roles for GitHub Actions, CloudFormation, and ECS
+
+Parameters:
+  GitHubOrg:
+    Description: Name of your GitHub organization/user (case sensitive)
+    Type: String
+  RepositoryName:
+    Description: Name of your GitHub repository (case sensitive)
+    Type: String
+  OIDCProviderArn:
+    Description: ARN of your GitHub OIDC Provider, if it exists already in your AWS account.
+    Default: ""
+    Type: String
+  OIDCAudience:
+    Description: Audience supplied to the configure-aws-credentials GitHub Action.
+    Default: "sts.amazonaws.com"
+    Type: String
+  GitHubActionsRoleName:
+    Description: The name of the role that GitHub Actions will use to deploy CloudFormation stacks.
+    Type: String
+    Default: github-actions-cloudformation-deploy-role
+  CloudFormationDeploymentRoleName:
+    Description: The name of the role that CloudFormation will use to deploy the resources in stacks.
+    Type: String
+    Default: github-actions-cloudformation-stack-role
+  ECSTaskExecutionRoleName:
+    Type: String
+    Description: The name of the role that ECS will use to run tasks.
+    Default: github-actions-ecs-task-execution-role
+
+Conditions:
+  CreateOIDCProvider: !Equals
+    - !Ref OIDCProviderArn
+    - ""
+
+Resources:
+  GitHubActionsOidc:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateOIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1 # Update with the latest GitHub OIDC thumbprint
+
+  GitHubActionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref GitHubActionsRoleName
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRoleWithWebIdentity

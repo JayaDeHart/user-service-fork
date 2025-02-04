@@ -1,0 +1,125 @@
+on:
+  push:
+    branches:
+      - master
+      - deploy-test
+    #   can remove the deploy test branch after merging to main
+
+name: Deploy
+
+jobs:
+  deploy-infrastructure:
+    name: Deploy infrastructure
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      env-name: ${{ steps.env-name.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure environment name
+        id: env-name
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          ENVIRONMENT=`echo $REPO | tr "/" "-"`
+          echo "Environment name: $ENVIRONMENT"
+          echo "environment=$ENVIRONMENT" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials
+        id: creds
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-cloudformation-deploy-role
+          role-session-name: DeployInfra
+          aws-region: us-east-2
+
+      - name: Retrieve default VPC ID and public subnets
+        id: vpc
+        run: |
+          VPC_ID=`aws ec2 describe-vpcs --filters "Name=isDefault, Values=true" --query 'Vpcs[].VpcId' --output text`
+          echo "vpc-id=$VPC_ID" >> "$GITHUB_OUTPUT"
+
+          SUBNET_1=`aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" "Name=default-for-az,Values=true" --query 'Subnets[0].SubnetId' --output text`
+          echo "subnet-one=$SUBNET_1" >> "$GITHUB_OUTPUT"
+
+          SUBNET_2=`aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" "Name=default-for-az,Values=true" --query 'Subnets[1].SubnetId' --output text`
+          echo "subnet-two=$SUBNET_2" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy infrastructure with CloudFormation
+        id: infrastructure-stack
+        uses: aws-actions/aws-cloudformation-github-deploy@v1
+        with:
+          name: ${{ steps.env-name.outputs.environment }}-infra
+          template: cloudformation-templates/infrastructure.yml
+          role-arn: arn:aws:iam::${{ steps.creds.outputs.aws-account-id }}:role/github-actions-cloudformation-stack-role
+          no-fail-on-empty-changeset: "1"
+          parameter-overrides: >-
+            EnvironmentName=${{ steps.env-name.outputs.environment }},
+            VPC=${{ steps.vpc.outputs.vpc-id }},
+            PublicSubnetOne=${{ steps.vpc.outputs.subnet-one }},
+            PublicSubnetTwo=${{ steps.vpc.outputs.subnet-two }}
+
+  deploy-java-app:
+    name: Deploy Java application
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    needs: deploy-infrastructure
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Build and package Java application
+        run: mvn clean package
+
+      - name: Configure AWS credentials
+        id: creds
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::1832-9541-0578:role/github-actions-cloudformation-deploy-role
+          role-session-name: DeployJavaApp
+          aws-region: us-east-2
+
+      - name: Login ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push Java application image
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: github-actions-${{ needs.deploy-infrastructure.outputs.env-name }}
+          IMAGE_TAG: java-app-${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy ECS service with CloudFormation
+        id: service-stack
+        uses: aws-actions/aws-cloudformation-github-deploy@v1
+        with:
+          name: ${{ needs.deploy-infrastructure.outputs.env-name }}-java-app
+          template: cloudformation-templates/service.yml
+          role-arn: arn:aws:iam::${{ steps.creds.outputs.aws-account-id }}:role/github-actions-cloudformation-stack-role
+          parameter-overrides: >-
+            EnvironmentName=${{ needs.deploy-infrastructure.outputs.env-name }},
+            ServiceName=java-app,
+            ImageUrl=${{ steps.build-image.outputs.image }}
+
+      - name: Print service URL
+        env:
+          URL: ${{ steps.service-stack.outputs.ServiceURL }}
+        run: |
+          echo "Service URL: $URL"
