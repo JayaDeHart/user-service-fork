@@ -33,7 +33,7 @@ jobs:
         id: creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::1832-9541-0578:role/github-actions-cloudformation-deploy-role
+          role-to-assume: arn:aws:iam::443933362940:role/github-actions-cloudformation-deploy-role
           role-session-name: DeployInfra
           aws-region: us-east-2
 
@@ -87,7 +87,7 @@ jobs:
         id: creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::1832-9541-0578:role/github-actions-cloudformation-deploy-role
+          role-to-assume: arn:aws:iam::443933362940:role/github-actions-cloudformation-deploy-role
           role-session-name: DeployJavaApp
           aws-region: us-east-2
 
