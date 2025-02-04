@@ -43,7 +43,7 @@ Resources:
       ClientIdList:
         - sts.amazonaws.com
       ThumbprintList:
-        - 6938fd4d98bab03faadb97b34396831e3780aea1 # Update with the latest GitHub OIDC thumbprint
+        - ffffffffffffffffffffffffffffffffffffffff
 
   GitHubActionsRole:
     Type: AWS::IAM::Role
@@ -53,3 +53,90 @@ Resources:
         Statement:
           - Effect: Allow
             Action: sts:AssumeRoleWithWebIdentity
+            Principal:
+              Federated: !If
+                - CreateOIDCProvider
+                - !Ref GitHubActionsOidc
+                - !Ref OIDCProviderArn
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: !Ref OIDCAudience
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubOrg}/${RepositoryName}:*
+
+  # The permissions that the GitHub Actions deployment workflow will have
+  GitHubActionsPolicy:
+    Type: AWS::IAM::RolePolicy
+    Properties:
+      RoleName: !Ref GitHubActionsRole
+      PolicyName: allow-github-actions-cloudformation-deploy
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - "cloudformation:*"
+              - "ec2:DescribeVpcs"
+              - "ec2:DescribeSubnets"
+              - "ecr:GetAuthorizationToken"
+            Effect: Allow
+            Resource: "*"
+          - Action: "cloudformation:DeleteStack"
+            Effect: Deny
+            Resource: "*"
+          - Action: "iam:PassRole"
+            Effect: Allow
+            Resource: !GetAtt CloudFormationDeploymentRole.Arn
+          - Action:
+              - "ecr:GetDownloadUrlForLayer"
+              - "ecr:BatchGetImage"
+              - "ecr:BatchCheckLayerAvailability"
+              - "ecr:PutImage"
+              - "ecr:InitiateLayerUpload"
+              - "ecr:UploadLayerPart"
+              - "ecr:CompleteLayerUpload"
+            Effect: Allow
+            Resource: !Sub "arn:${AWS::Partition}:ecr:*:${AWS::AccountId}:repository/github-actions-*"
+
+  # The permissions that the CloudFormation stack deployments will have
+  CloudFormationDeploymentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref CloudFormationDeploymentRoleName
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - cloudformation.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonVPCFullAccess
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
+        - arn:aws:iam::aws:policy/AmazonECS_FullAccess
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+        - arn:aws:iam::aws:policy/ElasticLoadBalancingFullAccess
+      Policies:
+        - PolicyName: allow-pass-role-for-ecs-task-exec-role
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action: "iam:PassRole"
+                Effect: Allow
+                Resource: !GetAtt ECSTaskExecutionRole.Arn
+
+  # This is a role used to start and manage ECS tasks (pull the container image, etc)
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref ECSTaskExecutionRoleName
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [ecs-tasks.amazonaws.com]
+            Action: ["sts:AssumeRole"]
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
