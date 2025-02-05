@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: "2010-09-09"
 Description: External, public facing load balancer, for forwarding public
   traffic to containers
 
@@ -25,7 +25,7 @@ Resources:
   ImageRepository:
     Type: AWS::ECR::Repository
     Properties:
-      RepositoryName: test
+      RepositoryName: !Sub "github-actions-${EnvironmentName}"
 
   ECSCluster:
     Type: AWS::ECS::Cluster
@@ -59,7 +59,7 @@ Resources:
       Scheme: internet-facing
       LoadBalancerAttributes:
         - Key: idle_timeout.timeout_seconds
-          Value: '30'
+          Value: "30"
       Subnets:
         - !Ref PublicSubnetOne
         - !Ref PublicSubnetTwo
