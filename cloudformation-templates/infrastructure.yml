@@ -1,5 +1,6 @@
-AWSTemplateFormatVersion: "2010-09-09"
-Description: External, public facing load balancer, for forwarding public traffic to containers
+AWSTemplateFormatVersion: '2010-09-09'
+Description: External, public facing load balancer, for forwarding public
+  traffic to containers
 
 Parameters:
   EnvironmentName:
@@ -24,7 +25,7 @@ Resources:
   ImageRepository:
     Type: AWS::ECR::Repository
     Properties:
-      RepositoryName: !Sub "github-actions-${EnvironmentName}"
+      RepositoryName: test
 
   ECSCluster:
     Type: AWS::ECS::Cluster
@@ -33,7 +34,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Access to the Fargate containers
-      VpcId: !Ref "VPC"
+      VpcId: !Ref VPC
 
   EcsSecurityGroupIngressFromPublicALB:
     Type: AWS::EC2::SecurityGroupIngress
@@ -41,7 +42,7 @@ Resources:
       Description: Ingress from the public ALB
       GroupId: !Ref ContainerSecurityGroup
       IpProtocol: -1
-      SourceSecurityGroupId: !Ref "PublicLoadBalancerSG"
+      SourceSecurityGroupId: !Ref PublicLoadBalancerSG
 
   PublicLoadBalancerSG:
     Type: AWS::EC2::SecurityGroup
@@ -58,11 +59,12 @@ Resources:
       Scheme: internet-facing
       LoadBalancerAttributes:
         - Key: idle_timeout.timeout_seconds
-          Value: "30"
+          Value: '30'
       Subnets:
         - !Ref PublicSubnetOne
         - !Ref PublicSubnetTwo
-      SecurityGroups: [!Ref "PublicLoadBalancerSG"]
+      SecurityGroups:
+        - !Ref PublicLoadBalancerSG
 
   DummyTargetGroupPublic:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -83,9 +85,9 @@ Resources:
       - PublicLoadBalancer
     Properties:
       DefaultActions:
-        - TargetGroupArn: !Ref "DummyTargetGroupPublic"
-          Type: "forward"
-      LoadBalancerArn: !Ref "PublicLoadBalancer"
+        - TargetGroupArn: !Ref DummyTargetGroupPublic
+          Type: forward
+      LoadBalancerArn: !Ref PublicLoadBalancer
       Port: 80
       Protocol: HTTP
 
@@ -102,31 +104,31 @@ Outputs:
       Name: !Sub ${EnvironmentName}:ExternalUrl
   ClusterName:
     Description: The name of the ECS cluster
-    Value: !Ref "ECSCluster"
+    Value: !Ref ECSCluster
     Export:
       Name: !Sub ${EnvironmentName}:ClusterName
   ECSTaskExecutionRole:
     Description: The ARN of the ECS task execution role
-    Value: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ECSTaskExecutionRole}"
+    Value: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ECSTaskExecutionRole}
     Export:
       Name: !Sub ${EnvironmentName}:ECSTaskExecutionRole
   VpcId:
     Description: The ID of the VPC that this stack is deployed in
-    Value: !Ref "VPC"
+    Value: !Ref VPC
     Export:
       Name: !Sub ${EnvironmentName}:VpcId
   PublicSubnetOne:
     Description: Public subnet one
-    Value: !Ref "PublicSubnetOne"
+    Value: !Ref PublicSubnetOne
     Export:
       Name: !Sub ${EnvironmentName}:PublicSubnetOne
   PublicSubnetTwo:
     Description: Public subnet two
-    Value: !Ref "PublicSubnetTwo"
+    Value: !Ref PublicSubnetTwo
     Export:
       Name: !Sub ${EnvironmentName}:PublicSubnetTwo
   ContainerSecurityGroup:
     Description: A security group used to allow Fargate containers to receive traffic
-    Value: !Ref "ContainerSecurityGroup"
+    Value: !Ref ContainerSecurityGroup
     Export:
       Name: !Sub ${EnvironmentName}:ContainerSecurityGroup
