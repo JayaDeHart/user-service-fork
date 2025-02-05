@@ -57,7 +57,7 @@ Resources:
             Action: sts:AssumeRoleWithWebIdentity
             Principal:
              Federated: !Sub >-
-                arn:aws:iam::443933362940:oidc-provider/token.actions.githubusercontent.com
+                arn:aws:iam::183295410578:oidc-provider/token.actions.githubusercontent.com
             Condition:
               StringLike:
                 token.actions.githubusercontent.com:aud: !Ref OIDCAudience

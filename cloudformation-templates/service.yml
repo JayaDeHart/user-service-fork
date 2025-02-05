@@ -8,7 +8,7 @@ Parameters:
     Description: The name of the environment to add this service to
   ServiceName:
     Type: String
-    Default: java-app
+    Default: user-service
     Description: A name for the service
   ImageUrl:
     Type: String

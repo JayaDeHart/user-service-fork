@@ -33,7 +33,7 @@ jobs:
         id: creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::443933362940:role/github-actions-cloudformation-deploy-role
+          role-to-assume: arn:aws:iam::183295410578:role/github-actions-cloudformation-deploy-role
           role-session-name: DeployInfra
           aws-region: us-east-2
 
@@ -63,7 +63,7 @@ jobs:
             PublicSubnetOne=${{ steps.vpc.outputs.subnet-one }},
             PublicSubnetTwo=${{ steps.vpc.outputs.subnet-two }}
 
-  deploy-java-app:
+  deploy-user-service:
     name: Deploy Java application
     runs-on: ubuntu-latest
     permissions:
@@ -87,7 +87,7 @@ jobs:
         id: creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::443933362940:role/github-actions-cloudformation-deploy-role
+          role-to-assume: arn:aws:iam::183295410578:role/github-actions-cloudformation-deploy-role
           role-session-name: DeployJavaApp
           aws-region: us-east-2
 
@@ -100,7 +100,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: github-actions-${{ needs.deploy-infrastructure.outputs.env-name }}
-          IMAGE_TAG: java-app-${{ github.sha }}
+          IMAGE_TAG: user-service-${{ github.sha }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
@@ -110,12 +110,12 @@ jobs:
         id: service-stack
         uses: aws-actions/aws-cloudformation-github-deploy@v1
         with:
-          name: ${{ needs.deploy-infrastructure.outputs.env-name }}-java-app
+          name: ${{ needs.deploy-infrastructure.outputs.env-name }}-user-service
           template: cloudformation-templates/service.yml
           role-arn: arn:aws:iam::${{ steps.creds.outputs.aws-account-id }}:role/github-actions-cloudformation-stack-role
           parameter-overrides: >-
             EnvironmentName=${{ needs.deploy-infrastructure.outputs.env-name }},
-            ServiceName=java-app,
+            ServiceName=user-service,
             ImageUrl=${{ steps.build-image.outputs.image }}
 
       - name: Print service URL
