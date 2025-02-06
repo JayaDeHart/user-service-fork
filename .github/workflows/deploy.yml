@@ -2,7 +2,7 @@ on:
   push:
     branches:
       - master
-      - deploy-test
+      - dev
     #   can remove the deploy test branch after merging to main
 
 name: Deploy
@@ -25,7 +25,8 @@ jobs:
         env:
           REPO: ${{ github.repository }}
         run: |
-          ENVIRONMENT=`echo $REPO | tr "/" "-"`
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          ENVIRONMENT="`echo $REPO | tr '/' '-'`-$BRANCH"
           echo "Environment name: $ENVIRONMENT"
           echo "environment=$ENVIRONMENT" >> "$GITHUB_OUTPUT"
 
@@ -104,7 +105,20 @@ jobs:
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"\
+
+      - name: Set DesiredCount based on branch
+        id: desired-count
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
+            COUNT=3
+          elif [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
+            COUNT=1
+          else
+            COUNT=2  # Default value for other branches
+          fi
+          echo "DesiredCount: $COUNT"
+          echo "desired_count=$COUNT" >> "$GITHUB_OUTPUT"
 
       - name: Deploy ECS service with CloudFormation
         id: service-stack
@@ -117,6 +131,7 @@ jobs:
             EnvironmentName=${{ needs.deploy-infrastructure.outputs.env-name }},
             ServiceName=user-service,
             ImageUrl=${{ steps.build-image.outputs.image }}
+            DesiredCount=${{ steps.desired-count.outputs.desired_count }}
 
       - name: Print service URL
         env:
