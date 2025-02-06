@@ -130,7 +130,7 @@ jobs:
           parameter-overrides: >-
             EnvironmentName=${{ needs.deploy-infrastructure.outputs.env-name }},
             ServiceName=user-service,
-            ImageUrl=${{ steps.build-image.outputs.image }}
+            ImageUrl=${{ steps.build-image.outputs.image }},
             DesiredCount=${{ steps.desired-count.outputs.desired_count }}
 
       - name: Print service URL
