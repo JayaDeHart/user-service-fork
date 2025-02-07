@@ -25,8 +25,7 @@ jobs:
         env:
           REPO: ${{ github.repository }}
         run: |
-          BRANCH="${GITHUB_REF#refs/heads/}"
-          ENVIRONMENT="`echo $REPO | tr '/' '-'`-$BRANCH"
+          ENVIRONMENT=`echo $REPO | tr "/" "-"`
           echo "Environment name: $ENVIRONMENT"
           echo "environment=$ENVIRONMENT" >> "$GITHUB_OUTPUT"
 
@@ -107,18 +106,27 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Set DesiredCount based on branch
-        id: desired-count
+      - name: Determine environment file
+        id: select-env-file
         run: |
           if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
-            COUNT=3
-          elif [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
-            COUNT=1
-          else
-            COUNT=2  # Default value for other branches
-          fi
-          echo "DesiredCount: $COUNT"
-          echo "desired_count=$COUNT" >> "$GITHUB_OUTPUT"
+            echo "ENV_FILE=environments/prod.env" >> $GITHUB_ENV
+          if [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
+            echo "ENV_FILE=environments/dev.env" >> $GITHUB_ENV
+          else 
+            echo "ENV_FILE=environments/prod.env" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Load environment variables from file
+        id: load-env
+        run: |
+          while IFS='=' read -r key value; do
+            # Skip empty lines and comments
+            if [[ ! -z "$key" && "$key" != \#* ]]; then
+              echo "$key=$value" >> $GITHUB_ENV
+              echo "$key=$value" >> $GITHUB_OUTPUT
+            fi
+          done < $ENV_FILE
 
       - name: Deploy ECS service with CloudFormation
         id: service-stack
@@ -131,7 +139,7 @@ jobs:
             EnvironmentName=${{ needs.deploy-infrastructure.outputs.env-name }},
             ServiceName=user-service,
             ImageUrl=${{ steps.build-image.outputs.image }},
-            DesiredCount=${{ steps.desired-count.outputs.desired_count }}
+            DesiredCount=${{ steps.load-env.outputs.DESIRED_COUNT }}
 
       - name: Print service URL
         env:
