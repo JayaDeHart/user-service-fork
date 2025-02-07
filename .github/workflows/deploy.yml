@@ -110,11 +110,11 @@ jobs:
         id: select-env-file
         run: |
           if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
-            echo "ENV_FILE=environments/prod.json" >> $GITHUB_OUPUT
+            echo "ENV_FILE=environments/prod.json" >> "$GITHUB_OUTPUT"
           elif [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
-            echo "ENV_FILE=environments/dev.json" >> $GITHUB_OUPUT
+            echo "ENV_FILE=environments/dev.json" >> "$GITHUB_OUTPUT"
           else 
-            echo "ENV_FILE=environments/prod.json" >> $GITHUB_OUTPUT
+            echo "ENV_FILE=environments/prod.json" >> "$GITHUB_OUTPUT"
           fi
         shell: bash
 
