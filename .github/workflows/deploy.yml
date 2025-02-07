@@ -111,10 +111,11 @@ jobs:
         run: |
           if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
             echo "ENV_FILE=environments/prod.env" >> $GITHUB_ENV
-          if [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
+          elif [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
             echo "ENV_FILE=environments/dev.env" >> $GITHUB_ENV
           else 
             echo "ENV_FILE=environments/prod.env" >> $GITHUB_ENV
+          fi
         shell: bash
 
       - name: Load environment variables from file
