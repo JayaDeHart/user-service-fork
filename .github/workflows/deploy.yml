@@ -110,24 +110,27 @@ jobs:
         id: select-env-file
         run: |
           if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
-            echo "ENV_FILE=environments/prod.env" >> $GITHUB_ENV
+            echo "ENV_FILE=environments/prod.json" >> $GITHUB_OUPUT
           elif [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
-            echo "ENV_FILE=environments/dev.env" >> $GITHUB_ENV
+            echo "ENV_FILE=environments/dev.json" >> $GITHUB_OUPUT
           else 
-            echo "ENV_FILE=environments/prod.env" >> $GITHUB_ENV
+            echo "ENV_FILE=environments/prod.json" >> $GITHUB_OUTPUT
           fi
         shell: bash
 
-      - name: Load environment variables from file
-        id: load-env
+      - name: Read parameters from JSON and add dynamic values
+        id: read-params
         run: |
-          while IFS='=' read -r key value; do
-            # Skip empty lines and comments
-            if [[ ! -z "$key" && "$key" != \#* ]]; then
-              echo "$key=$value" >> $GITHUB_ENV
-              echo "$key=$value" >> $GITHUB_OUTPUT
-            fi
-          done < $ENV_FILE
+          # Load static JSON parameters
+          PARAMS=$(jq -r 'to_entries | map("\(.key)=\(.value|tostring)") | join(",")' ${{ steps.select-env-file.outputs.ENV_FILE }})
+
+          # Add dynamic parameters 
+          IMAGE_PARAM="ImageUrl=${{ steps.build-image.outputs.image }}"
+          ENV_NAME="EnvironmentName=${{ needs.deploy-infrastructure.outputs.env-name }}"
+
+
+          # Combine static and dynamic parameters
+          echo "params=$PARAMS,$IMAGE_PARAM",$ENV_NAME >> $GITHUB_OUTPUT
 
       - name: Deploy ECS service with CloudFormation
         id: service-stack
@@ -136,12 +139,7 @@ jobs:
           name: ${{ needs.deploy-infrastructure.outputs.env-name }}-user-service
           template: cloudformation-templates/service.yml
           role-arn: arn:aws:iam::${{ steps.creds.outputs.aws-account-id }}:role/github-actions-cloudformation-stack-role
-          parameter-overrides: >-
-            EnvironmentName=${{ needs.deploy-infrastructure.outputs.env-name }},
-            ServiceName=user-service,
-            ImageUrl=${{ steps.build-image.outputs.image }},
-            DesiredCount=${{ steps.load-env.outputs.DESIRED_COUNT }}
-
+          parameter-overrides: ${{steps.read-params.outputs.params}}
       - name: Print service URL
         env:
           URL: ${{ steps.service-stack.outputs.ServiceURL }}
