@@ -15,5 +15,5 @@ This will run the code found in setup.yml.
 
 Once that is done, you can re-run the jobs in github and it should deploy the necessary infrastructure and ECS tasks.
 
-Regarding the application secrets, I have hardcoded the AWS account ID:443933362940 in several places. You can replace every instance of that with:
+Regarding the application secrets, I have hardcoded the AWS account ID:<> in several places. You can replace every instance of that with:
 ${{ secrets.AWS_ACCOUNT_ID }}, and add the account id as a repository secret.
